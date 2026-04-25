@@ -1,0 +1,23 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# Unity (si hay archivos de otro proyecto)
+Assets/
+Library/
+Temp/
+Obj/
+Build/
+Builds/
+Logs/
+*.sln
+*.csproj
+
+# VS Code
+.vscode/
+
+# PostgreSQL
+*.sql
