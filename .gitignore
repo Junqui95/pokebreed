@@ -5,19 +5,20 @@ __pycache__/
 *.pyo
 .env
 
-# Unity (si hay archivos de otro proyecto)
-Assets/
-Library/
-Temp/
-Obj/
-Build/
-Builds/
-Logs/
-*.sln
-*.csproj
+# PostgreSQL
+*.sql
 
 # VS Code
 .vscode/
 
-# PostgreSQL
-*.sql
+# Archivos temporales de desarrollo
+test_tick.py
+backend/fix_bugs.py
+backend/export_seeds.py
+backend/seed_test.py
+
+# Datos que se regeneran con los seeds
+data/pokemon.json
+
+# Node (por si se añade en el futuro)
+node_modules/

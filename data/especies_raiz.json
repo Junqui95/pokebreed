@@ -1,0 +1,9 @@
+{
+  "especies_raiz": [
+    {"numero_pokedex": 1,   "nombre": "bulbasaur"},
+    {"numero_pokedex": 4,   "nombre": "charmander"},
+    {"numero_pokedex": 7,   "nombre": "squirtle"},
+    {"numero_pokedex": 133, "nombre": "eevee"},
+    {"numero_pokedex": 132, "nombre": "ditto"}
+  ]
+}

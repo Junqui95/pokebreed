@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pokebreed Ultimate</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #1a1a2e;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'Press Start 2P', monospace;
+    }
+
+    #game-container {
+      display: flex;
+      border: 2px solid #444;
+      border-radius: 4px;
+      overflow: hidden;
+      box-shadow: 0 0 40px rgba(0,0,0,0.8);
+    }
+
+    #phaser-canvas {
+      display: block;
+    }
+
+    #ui-panel {
+      width: 220px;
+      background: #0f0f1a;
+      border-left: 2px solid #333;
+      display: flex;
+      flex-direction: column;
+      color: #eee;
+    }
+
+    #ui-tabs {
+      display: flex;
+      border-bottom: 2px solid #333;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 8px 4px;
+      font-size: 8px;
+      font-family: 'Press Start 2P', monospace;
+      background: transparent;
+      border: none;
+      color: #888;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .tab-btn.active {
+      color: #7ec850;
+      border-bottom: 2px solid #7ec850;
+    }
+
+    .tab-btn:hover { color: #aaa; }
+
+    #ui-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+      scrollbar-width: thin;
+      scrollbar-color: #333 transparent;
+    }
+
+    #selected-panel {
+      background: #1a1a2e;
+      border: 1px solid #333;
+      border-radius: 4px;
+      padding: 8px;
+      margin-bottom: 8px;
+    }
+
+    #selected-panel .panel-title {
+      font-size: 7px;
+      color: #666;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+
+    #selected-info {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #selected-sprite {
+      width: 40px;
+      height: 40px;
+      image-rendering: pixelated;
+    }
+
+    #selected-name {
+      font-size: 9px;
+      color: #eee;
+    }
+
+    #selected-meta {
+      font-size: 7px;
+      color: #888;
+      margin-top: 2px;
+    }
+
+    #iv-bars { margin-top: 8px; }
+
+    .iv-row {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 3px;
+    }
+
+    .iv-label {
+      font-size: 7px;
+      color: #666;
+      width: 24px;
+    }
+
+    .iv-track {
+      flex: 1;
+      height: 4px;
+      background: #333;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .iv-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: #7ec850;
+      transition: width 0.3s;
+    }
+
+    .iv-fill.high { background: #7ec850; }
+    .iv-fill.mid  { background: #e8c840; }
+    .iv-fill.low  { background: #e85040; }
+
+    .iv-val {
+      font-size: 7px;
+      color: #aaa;
+      width: 16px;
+      text-align: right;
+    }
+
+    .pokemon-card {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px;
+      border: 1px solid #333;
+      border-radius: 4px;
+      margin-bottom: 4px;
+      cursor: pointer;
+      transition: all 0.1s;
+    }
+
+    .pokemon-card:hover { border-color: #555; background: #1a1a2e; }
+    .pokemon-card.selected { border-color: #7ec850; background: #0d1f08; }
+
+    .card-sprite {
+      width: 32px;
+      height: 32px;
+      image-rendering: pixelated;
+      flex-shrink: 0;
+    }
+
+    .card-info { flex: 1; min-width: 0; }
+
+    .card-name {
+      font-size: 8px;
+      color: #ddd;
+      text-transform: capitalize;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .card-types {
+      display: flex;
+      gap: 3px;
+      margin-top: 3px;
+    }
+
+    .type-pill {
+      font-size: 6px;
+      padding: 1px 5px;
+      border-radius: 8px;
+    }
+
+    .shiny { color: #f0c040; font-size: 8px; }
+    .gender-m { color: #6090f0; }
+    .gender-f { color: #f06090; }
+
+    #bottom-bar {
+      border-top: 2px solid #333;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .action-btn {
+      width: 100%;
+      padding: 6px 8px;
+      font-size: 7px;
+      font-family: 'Press Start 2P', monospace;
+      background: #1a1a2e;
+      border: 1px solid #444;
+      border-radius: 4px;
+      color: #aaa;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.1s;
+    }
+
+    .action-btn:hover { border-color: #666; color: #eee; }
+
+    .action-btn.primary {
+      background: #1a3a10;
+      border-color: #7ec850;
+      color: #7ec850;
+    }
+
+    .action-btn.primary:hover { background: #234d15; }
+    .action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    #topbar {
+      width: 100%;
+      background: #0a0a15;
+      border-bottom: 2px solid #333;
+      padding: 6px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 10;
+    }
+
+    #game-wrapper {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #topbar-title {
+      font-size: 9px;
+      color: #7ec850;
+    }
+
+    #topbar-right {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .topbar-stat {
+      font-size: 7px;
+      color: #888;
+    }
+
+    .topbar-stat span {
+      color: #f0c040;
+    }
+
+    #status-bar {
+      background: #0a0a15;
+      border-top: 1px solid #222;
+      padding: 4px 8px;
+      font-size: 7px;
+      color: #666;
+      min-height: 20px;
+    }
+    
+    .delete-btn {
+      background: transparent;
+      border: 1px solid #442222;
+      color: #884444;
+      font-size: 8px;
+      width: 16px;
+      height: 16px;
+      border-radius: 2px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      line-height: 1;
+      transition: all 0.1s;
+    }
+    .delete-btn:hover {
+      background: #3a0000;
+      border-color: #e85040;
+      color: #e85040;
+    }
+
+    /* Type colors */
+    .t-grass    { background: #1a3a10; color: #7ec850; }
+    .t-fire     { background: #3a1a10; color: #e87040; }
+    .t-water    { background: #10203a; color: #5090e8; }
+    .t-electric { background: #3a2a00; color: #e8c840; }
+    .t-psychic  { background: #3a1030; color: #e850a0; }
+    .t-poison   { background: #2a1040; color: #a060e8; }
+    .t-normal   { background: #2a2a2a; color: #aaa; }
+    .t-dragon   { background: #1a1060; color: #6060e8; }
+    .t-dark     { background: #1a1a1a; color: #888; }
+    .t-flying   { background: #102030; color: #80b0e0; }
+    .t-rock     { background: #2a2010; color: #c0a060; }
+    .t-ground   { background: #2a1a00; color: #c08040; }
+    .t-ice      { background: #102030; color: #80d0e8; }
+    .t-bug      { background: #1a2a10; color: #80a840; }
+    .t-ghost    { background: #201040; color: #8060c0; }
+    .t-steel    { background: #202030; color: #a0a0c0; }
+    .t-fairy    { background: #3a1030; color: #e880b0; }
+    .t-fighting { background: #3a1010; color: #c04040; }
+  </style>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<div id="game-container">
+  <div id="game-wrapper">
+    <div id="topbar">
+      <span id="topbar-title">POKEBREED ULTIMATE</span>
+      <div id="topbar-right">
+        <span class="topbar-stat">Rancho: <span id="stat-nombre">Ash</span></span>
+        <span class="topbar-stat">💰 <span id="stat-dinero">5.000</span> P</span>
+        <span class="topbar-stat">Día <span id="stat-dia">1</span></span>
+      </div>
+    </div>
+    <canvas id="phaser-canvas"></canvas>
+    <div id="status-bar">Bienvenido a tu rancho. Selecciona un Pokémon para empezar.</div>
+  </div>
+
+  <div id="ui-panel">
+    <div id="ui-tabs">
+      <button class="tab-btn active" onclick="switchTab('pokemon')">Pokémon</button>
+      <button class="tab-btn" onclick="switchTab('huevos')">Huevos</button>
+      <button class="tab-btn" onclick="switchTab('zonas')">Zonas</button>
+    </div>
+
+    <div id="ui-content">
+      <div id="selected-panel">
+        <div class="panel-title">seleccionado</div>
+        <div id="selected-info">
+          <img id="selected-sprite" src="" alt=""/>
+          <div>
+            <div id="selected-name" style="font-size:9px;color:#eee">—</div>
+            <div id="selected-meta" style="font-size:7px;color:#888">Ninguno</div>
+          </div>
+        </div>
+        <div id="iv-bars"></div>
+      </div>
+
+      <div id="pokemon-list"></div>
+      <div id="huevos-list" style="display:none"></div>
+      <div id="zonas-list" style="display:none"></div>
+    </div>
+
+    <div id="bottom-bar">
+      <button class="action-btn primary" id="btn-criar" disabled onclick="iniciarCrianza()">
+        ▶ Iniciar crianza
+      </button>
+      <button class="action-btn" id="btn-mover" disabled onclick="moverZona()">
+        ↔ Mover zona
+      </button>
+      <button class="action-btn" onclick="verPokedex()">
+        📖 Ver Pokédex
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+<script src="src/api.js"></script>
+<script src="src/config.js"></script>
+<script src="src/scenes/BootScene.js"></script>
+<script src="src/scenes/RanchScene.js"></script>
+<script src="src/scenes/UIScene.js"></script>
+<script src="src/main.js"></script>
+
+</body>
+</html>

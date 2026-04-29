@@ -1,0 +1,62 @@
+{
+  "recetas": [
+    {
+      "resultado_pokedex": 43,
+      "notas": "Oddish — planta+veneno",
+      "combinaciones": [
+        {"padre1_pokedex": 3, "padre2_pokedex": 24}
+      ]
+    },
+    {
+      "resultado_pokedex": 79,
+      "notas": "Slowpoke — pato psíquico+psíquico lento",
+      "combinaciones": [
+        {"padre1_pokedex": 55, "padre2_pokedex": 65}
+      ]
+    },
+    {
+      "resultado_pokedex": 116,
+      "notas": "Horsea — agua+dragón = dragón marino",
+      "combinaciones": [
+        {"padre1_pokedex": 9, "padre2_pokedex": 149}
+      ]
+    },
+    {
+      "resultado_pokedex": 124,
+      "notas": "Jynx — fantasma+psíquico = humanoide misterioso",
+      "combinaciones": [
+        {"padre1_pokedex": 94, "padre2_pokedex": 65}
+      ]
+    },
+    {
+    "resultado_pokedex": 147,
+    "notas": "Dratini — Leviatán + Prehistórico = Dragón ancestral",
+    "combinaciones": [
+        {"padre1_pokedex": 130, "padre2_pokedex": 142}
+    ]
+    },
+    {
+      "resultado_pokedex": 146,
+      "notas": "Moltres — fuego vivo+agua en zona fuego extrema",
+      "zona_requerida": "fire",
+      "intensidad_minima": 1.8,
+      "combinaciones": [
+        {"padre1_pokedex": 126, "padre2_pokedex": 134}
+      ],
+      "resultados_alternativos": [
+        {"resultado_pokedex": 250, "probabilidad": 0.3}
+      ],
+      "probabilidad_base": 0.7
+    },
+    {
+      "resultado_pokedex": 150,
+      "notas": "Mewtwo — psíquico puro extremo en zona psíquica",
+      "zona_requerida": "psychic",
+      "intensidad_minima": 1.8,
+      "combinaciones": [
+        {"padre1_pokedex": 65, "padre2_pokedex": 282}
+      ],
+      "probabilidad_base": 1.0
+    }
+  ]
+}

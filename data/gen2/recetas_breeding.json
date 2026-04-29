@@ -1,0 +1,53 @@
+{
+  "recetas": [
+    {
+      "resultado_pokedex": 152,
+      "notas": "Chikorita — planta pura",
+      "combinaciones": [
+        {"padre1_pokedex": 3,   "padre2_pokedex": 3},
+        {"padre1_pokedex": 254, "padre2_pokedex": 3}
+      ]
+    },
+    {
+      "resultado_pokedex": 155,
+      "notas": "Cyndaquil — fuego puro",
+      "combinaciones": [
+        {"padre1_pokedex": 6,   "padre2_pokedex": 6},
+        {"padre1_pokedex": 257, "padre2_pokedex": 6}
+      ]
+    },
+    {
+      "resultado_pokedex": 158,
+      "notas": "Totodile — agua pura agresiva",
+      "combinaciones": [
+        {"padre1_pokedex": 9,   "padre2_pokedex": 9},
+        {"padre1_pokedex": 260, "padre2_pokedex": 160}
+      ]
+    },
+    {
+      "resultado_pokedex": 218,
+      "notas": "Slugma — fuego+agua = magma",
+      "combinaciones": [
+        {"padre1_pokedex": 6,   "padre2_pokedex": 9},
+        {"padre1_pokedex": 257, "padre2_pokedex": 260}
+      ]
+    },
+    {
+      "resultado_pokedex": 246,
+      "notas": "Larvitar — fuego+dragón = pseudolegendario oscuro",
+      "combinaciones": [
+        {"padre1_pokedex": 6, "padre2_pokedex": 149}
+      ]
+    },
+    {
+      "resultado_pokedex": 250,
+      "notas": "Ho-Oh — fuego vivo+agua en zona fuego extrema (raro)",
+      "zona_requerida": "fire",
+      "intensidad_minima": 1.8,
+      "combinaciones": [
+        {"padre1_pokedex": 126, "padre2_pokedex": 134}
+      ],
+      "probabilidad_base": 0.3
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+  "recetas": [
+    {
+      "resultado_pokedex": 255,
+      "notas": "Torchic — fuego+ave = pollito de fuego",
+      "combinaciones": [
+        {"padre1_pokedex": 6,   "padre2_pokedex": 18},
+        {"padre1_pokedex": 257, "padre2_pokedex": 18}
+      ]
+    },
+    {
+      "resultado_pokedex": 258,
+      "notas": "Mudkip — roca+agua = anfibio terrestre",
+      "combinaciones": [
+        {"padre1_pokedex": 76,  "padre2_pokedex": 9},
+        {"padre1_pokedex": 260, "padre2_pokedex": 9}
+      ]
+    },
+    {
+      "resultado_pokedex": 270,
+      "notas": "Lotad — pato+planta en cabeza = pato con hoja",
+      "combinaciones": [
+        {"padre1_pokedex": 55,  "padre2_pokedex": 154},
+        {"padre1_pokedex": 9,   "padre2_pokedex": 254}
+      ]
+    },
+    {
+      "resultado_pokedex": 280,
+      "notas": "Ralts — psíquico+fantasma = sensible a emociones",
+      "combinaciones": [
+        {"padre1_pokedex": 65, "padre2_pokedex": 94}
+      ]
+    }
+  ]
+}
