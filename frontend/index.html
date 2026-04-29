@@ -10,12 +10,14 @@
     body {
       background: #1a1a2e;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
       height: 100vh;
       overflow: hidden;
       font-family: 'Press Start 2P', monospace;
+      margin: 0;
+      padding: 20px;
+      box-sizing: border-box;
     }
 
     #game-container {
@@ -24,10 +26,24 @@
       border-radius: 4px;
       overflow: hidden;
       box-shadow: 0 0 40px rgba(0,0,0,0.8);
+      width: calc(100vw - 40px);
+      max-width: 1400px;
+      height: calc(100vh - 40px);
+    }
+
+    #game-wrapper {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 0;
     }
 
     #phaser-canvas {
       display: block;
+      width: 100% !important;
+      height: 100% !important;
+      image-rendering: pixelated;
     }
 
     #ui-panel {

@@ -1,5 +1,5 @@
-const GAME_WIDTH  = 560
-const GAME_HEIGHT = 480
+const GAME_WIDTH  = 800
+const GAME_HEIGHT = 600
 const TOPBAR_H    = 30
 
 const TYPE_COLORS = {

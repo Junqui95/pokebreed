@@ -187,64 +187,60 @@ class RanchScene extends Phaser.Scene {
     })
 
     // ── Drag ──────────────────────────────────────
-    sprite.on("dragstart", () => {
+    sprite.on("dragstart", (pointer) => {
       this.dragTarget = pkmn.id
-      tween.pause()
+      // Guardar offset entre el centro del sprite y donde se clickó
+      sprite.setData("offsetX", sprite.x - pointer.x)
+      sprite.setData("offsetY", sprite.y - pointer.y)
+      tween.stop()
       sprite.setDepth(10)
       sprite.setScale(esHuevo ? 1.2 : 1.8)
       sprite.setAlpha(0.85)
     })
 
-    sprite.on("drag", (ptr, dx, dy) => {
-      sprite.x = dx
-      sprite.y = dy
-      // Highlight zona bajo el cursor
-      this.zonaRects.forEach(z => {
-        const dentro = dx >= z.x && dx <= z.x + z.w && dy >= z.y && dy <= z.y + z.h
-        // Visual feedback podría añadirse aquí
-      })
+    sprite.on("drag", (pointer) => {
+      sprite.x = pointer.x + sprite.getData("offsetX")
+      sprite.y = pointer.y + sprite.getData("offsetY")
     })
 
     sprite.on("dragend", async (pointer) => {
-      const dx = pointer.x
-      const dy = pointer.y
+      const finalX = pointer.x + (sprite.getData("offsetX") || 0)
+      const finalY = pointer.y + (sprite.getData("offsetY") || 0)
+
       this.dragTarget = null
       sprite.setDepth(0)
       sprite.setScale(esHuevo ? 1.0 : 1.5)
       sprite.setAlpha(1)
 
-      // Detectar en qué zona cayó
+      // Detectar zona
       const zonaDestino = this.zonaRects.find(z =>
-        dx >= z.x && dx <= z.x + z.w &&
-        dy >= z.y && dy <= z.y + z.h
+        finalX >= z.x && finalX <= z.x + z.w &&
+        finalY >= z.y && finalY <= z.y + z.h
       )
 
       try {
         await API.moverPokemon(
           pkmn.id,
           zonaDestino ? zonaDestino.id : null,
-          Math.round(dx),
-          Math.round(dy)
+          Math.round(finalX),
+          Math.round(finalY)
         )
 
-        // Actualizar posición local
-        pkmn.pos_x = Math.round(dx)
-        pkmn.pos_y = Math.round(dy)
-        sprite.x   = dx
-        sprite.y   = dy
+        pkmn.pos_x = Math.round(finalX)
+        pkmn.pos_y = Math.round(finalY)
+        sprite.x   = finalX
+        sprite.y   = finalY
 
-        // Detener tween anterior y crear uno nuevo desde la posición actual
-        tween.stop()
+        // Crear tween nuevo desde posición final
         const nuevoTween = this.tweens.add({
           targets:  sprite,
-          y:        dy - 4,
+          y:        finalY - 4,
           duration: 700 + Math.random() * 600,
           yoyo:     true,
           repeat:   -1,
           ease:     "Sine.easeInOut"
         })
         sprite.setData("tween", nuevoTween)
-        sprite.setData("baseY", dy)
 
         const zonaMsg = zonaDestino ? zonaDestino.tipo : "fuera de zona"
         document.getElementById("status-bar").textContent =
@@ -257,7 +253,6 @@ class RanchScene extends Phaser.Scene {
       } catch(e) {
         sprite.x = pkmn.pos_x || x
         sprite.y = pkmn.pos_y || y
-        tween.stop()
         this.tweens.add({
           targets:  sprite,
           y:        (pkmn.pos_y || y) - 4,

@@ -1,8 +1,8 @@
 const config = {
   type: Phaser.CANVAS,
   canvas: document.getElementById("phaser-canvas"),
-  width:  GAME_WIDTH,
-  height: GAME_HEIGHT,
+  width:  800,
+  height: 600,
   backgroundColor: "#3a7a22",
   scene: [BootScene, RanchScene],
   pixelArt: true,
