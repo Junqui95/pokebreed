@@ -4,11 +4,8 @@ class BootScene extends Phaser.Scene {
   }
 
   preload() {
-    // Tiles del mapa
-    this.load.image("grass",  "assets/grass.png")
-
-    // Cargar sprites de los Pokémon del jugador desde PokéAPI
-    // Los cargamos dinámicamente en RanchScene al tener los datos
+    this.load.image("tileset", "assets/tilesets/exterior.png")
+    this.load.json("mapa", "assets/tilemaps/rancho.json")
   }
 
   create() {

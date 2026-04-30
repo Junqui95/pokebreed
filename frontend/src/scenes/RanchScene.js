@@ -5,262 +5,334 @@ class RanchScene extends Phaser.Scene {
     this.zonasList    = []
     this.selectedIds  = []
     this.sprites      = {}
-    this.zonaRects    = []   // rectángulos de zonas para hit-test
-    this.tickInterval = null
+    this.zonaRects    = []
     this.dragTarget   = null
+    this.mapaData     = null
+    this.TILE         = 32
+    this.TILE_SRC     = 16
+    this.TILESET_COLS = 8
   }
 
   create() {
-    const W = this.scale.width
-    const H = this.scale.height
-
-    // ── Fondo ─────────────────────────────────────
-    this.add.rectangle(0, 0, W, H, 0x3a7a22).setOrigin(0)
-    const gfondo = this.add.graphics()
-    for (let x = 0; x < W; x += 32) {
-      for (let y = 0; y < H; y += 32) {
-        if ((x + y) % 64 === 0) {
-          gfondo.fillStyle(0x347020, 0.4)
-          gfondo.fillRect(x, y, 32, 32)
-        }
-      }
-    }
-
-    // ── Caminos ───────────────────────────────────
-    const paths = this.add.graphics()
-    paths.fillStyle(0xc0a060, 0.45)
-    paths.fillRect(W / 2 - 5, 0, 10, H)
-    paths.fillRect(0, H / 2 - 5, W, 10)
-
-    // ── Estanque ──────────────────────────────────
-    const pond = this.add.graphics()
-    pond.fillStyle(0x2050b0, 0.55)
-    pond.fillEllipse(W - 75, 65, 85, 55)
-    pond.fillStyle(0x4080e0, 0.25)
-    pond.fillEllipse(W - 78, 60, 60, 35)
-
-    // ── Árboles ───────────────────────────────────
-    const trees = [[W-28,18],[W-58,8],[12,H-48],[W-18,H-38],[28,H-75]]
-      trees.forEach(function(pos) {
-        const x = pos[0], y = pos[1]
-        this.add.text(x, y, "🌲", { fontSize: "18px" }).setOrigin(0.5)
-      }, this)
-
-    // ── Input teclado ─────────────────────────────
+    this.mapaData = this.cache.json.get("mapa")
+    this.dibujarMapa()
     this.input.keyboard.on("keydown-ESC", () => {
       this.selectedIds = []
       this.actualizarSeleccion()
     })
-
-    // ── Cargar datos y arrancar ticks ─────────────
     this.cargarTodo()
   }
 
+  // ── Dibujar mapa de tiles ──────────────────────
+  dibujarMapa() {
+    const mapa    = this.mapaData
+    const leyenda = mapa.leyenda
+    const TILE    = this.TILE
+    const SRC     = this.TILE_SRC
+    const COLS    = this.TILESET_COLS
+
+    // Coordenadas de cada tipo de tile en el tileset
+    const tileCoords = {
+      "hierba":   mapa.tiles.hierba,
+      "tierra":   mapa.tiles.tierra,
+      "arena":    mapa.tiles.arena,
+      "hierba_c": mapa.tiles["hierba_c"],
+      "valla_vL": mapa.tiles["valla_vL"],
+      "valla_vR": mapa.tiles["valla_vR"],
+      "valla_TL": mapa.tiles["valla_TL"],
+      "valla_hT": mapa.tiles["valla_hT"],
+      "valla_TR": mapa.tiles["valla_TR"],
+      "valla_BL": mapa.tiles["valla_BL"],
+      "valla_BR": mapa.tiles["valla_BR"],
+    }
+
+    // Crear RenderTexture del tamaño del mapa
+    const rt = this.add.renderTexture(0, 0,
+      mapa.ancho * TILE, mapa.alto * TILE)
+
+    // Crear imagen temporal para recortar tiles
+    const tileset = this.textures.get("tileset")
+    const tilesetImg = tileset.getSourceImage()
+
+    mapa.mapa.forEach((fila, r) => {
+      fila.forEach((tileId, c) => {
+        const tipoNombre = leyenda[String(tileId)] || "hierba"
+        const coords     = tileCoords[tipoNombre] || tileCoords["hierba"]
+        const [tr, tc]   = coords
+
+        // Crear frame temporal del tile
+        const key = `tile_${tr}_${tc}`
+        if (!this.textures.exists(key)) {
+          this.textures.add(
+            key,
+            0,
+            tc * SRC, tr * SRC,
+            SRC, SRC
+          )
+        }
+
+        // Dibujar tile escalado
+        const img = this.add.image(0, 0, "tileset")
+          .setOrigin(0)
+          .setCrop(tc * SRC, tr * SRC, SRC, SRC)
+          .setScale(TILE / SRC)
+          .setVisible(false)
+
+        rt.draw(img, c * TILE, r * TILE)
+        img.destroy()
+      })
+    })
+
+    // Calcular zonaRects desde el JSON
+    this.zonaRects = []
+    Object.entries(mapa.zonas).forEach(([nombre, zona]) => {
+      this.zonaRects.push({
+        nombre,
+        tipo:  zona.tipo,
+        x:     zona.col_inicio * TILE,
+        y:     zona.fila_inicio * TILE,
+        w:     (zona.col_fin - zona.col_inicio + 1) * TILE,
+        h:     (zona.fila_fin - zona.fila_inicio + 1) * TILE,
+        tiles: this._getTilesDeZona(zona)
+      })
+    })
+
+    // Tiles de valla = bloqueados para Pokémon
+    this.tilesBlocking = new Set()
+    mapa.mapa.forEach((fila, r) => {
+      fila.forEach((tileId, c) => {
+        if ([10,11,12,13,14,15,16].includes(tileId)) {
+          this.tilesBlocking.add(`${c},${r}`)
+        }
+      })
+    })
+  }
+
+  _getTilesDeZona(zona) {
+    const tiles = []
+    for (let r = zona.fila_inicio + 1; r < zona.fila_fin; r++) {
+      for (let c = zona.col_inicio + 1; c < zona.col_fin; c++) {
+        tiles.push({ col: c, fila: r })
+      }
+    }
+    return tiles
+  }
+
+  // ── Cargar datos de la API ─────────────────────
   async cargarTodo() {
     try {
       const [pokemon, zonas] = await Promise.all([
         API.getPokemon(JUGADOR_ID),
         API.getZonas(JUGADOR_ID)
       ])
-      this.zonasList  = zonas
+      this.zonasList   = zonas
       this.pokemonList = pokemon
 
-      this.dibujarZonas()
+      // Sincronizar zonaRects con IDs reales de la API
+      this.zonasList.forEach(zona => {
+        const rect = this.zonaRects.find(r => r.tipo === zona.tipo_zona)
+        if (rect) rect.id = zona.id
+      })
+
       this.colocarSprites()
       window.actualizarListaPokemon(this.pokemonList)
       window.actualizarZonasUI(this.zonasList)
-
-      // Arrancar loop de ticks
       this.arrancarTicks()
 
     } catch(e) {
-      console.error("Error cargando datos:", e)
-      document.getElementById("status-bar").textContent = "Error conectando con la API."
+      console.error("Error:", e)
+      document.getElementById("status-bar").textContent =
+        "Error conectando con la API."
     }
   }
 
-  dibujarZonas() {
-    this.zonaRects = []
-    const colores = {
-      cria:          { borde: 0xd4a030, relleno: 0xd4a030, label: "🥚 CRIANZA",      color: "#f0c060" },
-      entrenamiento: { borde: 0x50c050, relleno: 0x50c050, label: "⚡ ENTRENAMIENTO", color: "#80f080" },
-      incubacion:    { borde: 0x8040c0, relleno: 0x201040, label: "🔮 INCUBACIÓN",    color: "#a060e0" },
-    }
-
-    this.zonasList.forEach(zona => {
-      const cfg = colores[zona.tipo_zona] || colores.cria
-      const g   = this.add.graphics()
-
-      g.lineStyle(2, cfg.borde, 0.9)
-      g.fillStyle(cfg.relleno, 0.12)
-      g.strokeRect(zona.pos_x, zona.pos_y, zona.ancho, zona.alto)
-      g.fillRect(zona.pos_x, zona.pos_y, zona.ancho, zona.alto)
-
-      this.add.text(
-        zona.pos_x + zona.ancho / 2,
-        zona.pos_y + 14,
-        cfg.label,
-        { fontSize: "7px", fontFamily: "'Press Start 2P'", color: cfg.color }
-      ).setOrigin(0.5)
-
-      // Guardar rect para hit-test en drag
-      this.zonaRects.push({
-        id:   zona.id,
-        tipo: zona.tipo_zona,
-        x:    zona.pos_x,
-        y:    zona.pos_y,
-        w:    zona.ancho,
-        h:    zona.alto
-      })
-    })
-  }
-
+  // ── Colocar sprites en el mapa ─────────────────
   colocarSprites() {
     this.pokemonList.forEach(pkmn => {
-      const x = pkmn.pos_x || 80 + Math.random() * 200
-      const y = pkmn.pos_y || 80 + Math.random() * 100
-      this.cargarSpritePokemon(pkmn, x, y)
+      // Convertir pos_x/pos_y (px) a tile, o asignar tile libre
+      let tileCol, tileFila
+      if (pkmn.pos_x && pkmn.pos_y) {
+        tileCol  = Math.floor(pkmn.pos_x / this.TILE)
+        tileFila = Math.floor(pkmn.pos_y / this.TILE)
+      } else {
+        // Buscar tile libre en zona correspondiente
+        const zona  = this.zonasList.find(z => z.id === pkmn.zona_actual_id)
+        const rect  = this.zonaRects.find(r => zona && r.tipo === zona.tipo_zona)
+        const libre = rect ? this._tileLibre(rect) : { col: 2, fila: 2 }
+        tileCol  = libre.col
+        tileFila = libre.fila
+      }
+      this.cargarSpritePokemon(pkmn, tileCol, tileFila)
     })
   }
 
-  cargarSpritePokemon(pkmn, x, y) {
+  _tileLibre(rect) {
+    const ocupados = new Set(
+      Object.values(this.sprites).map(s => {
+        const c = Math.floor(s.x / this.TILE)
+        const f = Math.floor(s.y / this.TILE)
+        return `${c},${f}`
+      })
+    )
+    for (const t of rect.tiles) {
+      if (!ocupados.has(`${t.col},${t.fila}`)) return t
+    }
+    return rect.tiles[0] || { col: 2, fila: 2 }
+  }
+
+  // ── Sprites PMD ────────────────────────────────
+  cargarSpritePokemon(pkmn, tileCol, tileFila) {
     const esHuevo = pkmn.nivel === 1 && pkmn.padre_id !== null
-    const key     = `pkmn_${pkmn.numero_pokedex}`
-    const url     = API.spriteUrl(pkmn.numero_pokedex)
+    const num     = pkmn.numero_pokedex
+    const key     = `pmd_${num}`
+    const url     = `assets/sprites/pokemon/${num}/Walk-Anim.png`
+    const fallback= `assets/sprites/pokemon/0/Walk-Anim.png`
+
+    const onCreate = () => this.crearSprite(pkmn, key, tileCol, tileFila, esHuevo)
 
     if (this.textures.exists(key)) {
-      this.crearSprite(pkmn, key, x, y, esHuevo)
+      onCreate()
     } else {
       this.load.image(key, url)
-      this.load.once("complete", () => this.crearSprite(pkmn, key, x, y, esHuevo))
+      this.load.once("complete", onCreate)
+      this.load.once("loaderror", () => {
+        if (!this.textures.exists(key)) {
+          this.load.image(key, fallback)
+          this.load.once("complete", onCreate)
+          this.load.start()
+        }
+      })
       this.load.start()
     }
   }
 
-  crearSprite(pkmn, key, x, y, esHuevo = false) {
-    // Eliminar sprite anterior si existe
-    if (this.sprites[pkmn.id]) {
-      this.sprites[pkmn.id].destroy()
-    }
+  crearSprite(pkmn, key, tileCol, tileFila, esHuevo = false) {
+    if (this.sprites[pkmn.id]) this.sprites[pkmn.id].destroy()
+
+    const TILE = this.TILE
+    const x    = tileCol  * TILE + TILE / 2
+    const y    = tileFila * TILE + TILE / 2
+
+    // El spritesheet PMD: 8 cols x 8 rows, frame ~30x40px
+    // Usamos fila 0 (sur) frame 0 como sprite estático por ahora
+    const FRAME_W = 30
+    const FRAME_H = 40
+    const SHEET_W = 240  // ancho total spritesheet
 
     const sprite = this.add.image(x, y, key)
-      .setScale(esHuevo ? 1.0 : 1.5)
+      .setOrigin(0.5)
+      .setCrop(0, 0, FRAME_W, FRAME_H)
+      .setScale(TILE / FRAME_H)
       .setInteractive({ draggable: true, cursor: "pointer" })
       .setData("pokemonId", pkmn.id)
+      .setData("tileCol", tileCol)
+      .setData("tileFila", tileFila)
       .setData("esHuevo", esHuevo)
 
     if (esHuevo) sprite.setTint(0x8888ff)
 
-    // ── Animación idle ────────────────────────────
-    const tween = this.tweens.add({
+    // Animación idle — bob suave
+    this.tweens.add({
       targets:  sprite,
-      y:        y - 4,
-      duration: 700 + Math.random() * 600,
+      y:        y - 3,
+      duration: 600 + Math.random() * 400,
       yoyo:     true,
       repeat:   -1,
       ease:     "Sine.easeInOut",
-      delay:    Math.random() * 800
+      delay:    Math.random() * 500
     })
-    sprite.setData("tween", tween)
-    sprite.setData("baseY", y)
 
-    // ── Hover ────────────────────────────────────
+    // Hover
     sprite.on("pointerover", () => {
-      if (!this.dragTarget) {
-        sprite.setTint(esHuevo ? 0xaaaaff : 0xdddddd)
-        const gen = pkmn.genero === "F" ? "♀" : pkmn.genero === "M" ? "♂" : ""
-        document.getElementById("status-bar").textContent = esHuevo
-          ? `🥚 Huevo de ${pkmn.nombre.toUpperCase()} · ${gen} · ${pkmn.naturaleza}`
-          : `${pkmn.nombre.toUpperCase()} · Nv.${pkmn.nivel} ${gen} · ${pkmn.naturaleza || ""}`
-      }
+      sprite.setTint(esHuevo ? 0xaaaaff : 0xdddddd)
+      const gen = pkmn.genero === "F" ? "♀" : "♂"
+      document.getElementById("status-bar").textContent =
+        `${pkmn.nombre.toUpperCase()} · Nv.${pkmn.nivel} ${gen}`
     })
     sprite.on("pointerout", () => {
-      if (!this.selectedIds.includes(pkmn.id) && !this.dragTarget) {
+      if (!this.selectedIds.includes(pkmn.id))
         esHuevo ? sprite.setTint(0x8888ff) : sprite.clearTint()
-      }
       document.getElementById("status-bar").textContent = ""
     })
-
-    // ── Click (selección) ─────────────────────────
     sprite.on("pointerdown", () => {
       if (!this.dragTarget) this.seleccionarPokemon(pkmn.id)
     })
 
-    // ── Drag ──────────────────────────────────────
-    sprite.on("dragstart", (pointer) => {
+    // Drag con snap a tile
+    sprite.on("dragstart", () => {
       this.dragTarget = pkmn.id
-      // Guardar offset entre el centro del sprite y donde se clickó
-      sprite.setData("offsetX", sprite.x - pointer.x)
-      sprite.setData("offsetY", sprite.y - pointer.y)
-      tween.stop()
+      this.tweens.killTweensOf(sprite)
       sprite.setDepth(10)
-      sprite.setScale(esHuevo ? 1.2 : 1.8)
       sprite.setAlpha(0.85)
     })
 
     sprite.on("drag", (pointer) => {
-      sprite.x = pointer.x + sprite.getData("offsetX")
-      sprite.y = pointer.y + sprite.getData("offsetY")
+      sprite.x = pointer.x
+      sprite.y = pointer.y
     })
 
     sprite.on("dragend", async (pointer) => {
-      const finalX = pointer.x + (sprite.getData("offsetX") || 0)
-      const finalY = pointer.y + (sprite.getData("offsetY") || 0)
-
       this.dragTarget = null
       sprite.setDepth(0)
-      sprite.setScale(esHuevo ? 1.0 : 1.5)
       sprite.setAlpha(1)
 
+      // Snap al tile más cercano
+      const snapCol  = Math.round((pointer.x - TILE / 2) / TILE)
+      const snapFila = Math.round((pointer.y - TILE / 2) / TILE)
+      const clampCol  = Math.max(0, Math.min(this.mapaData.ancho - 1, snapCol))
+      const clampFila = Math.max(0, Math.min(this.mapaData.alto  - 1, snapFila))
+
+      // Verificar que no es tile de valla
+      if (this.tilesBlocking.has(`${clampCol},${clampFila}`)) {
+        // Revertir a posición anterior
+        sprite.x = sprite.getData("tileCol") * TILE + TILE / 2
+        sprite.y = sprite.getData("tileFila") * TILE + TILE / 2
+        document.getElementById("status-bar").textContent =
+          "No puedes colocar un Pokémon en una valla"
+        this._reanudarTween(sprite)
+        return
+      }
+
       // Detectar zona
+      const finalX = clampCol  * TILE + TILE / 2
+      const finalY = clampFila * TILE + TILE / 2
       const zonaDestino = this.zonaRects.find(z =>
-        finalX >= z.x && finalX <= z.x + z.w &&
-        finalY >= z.y && finalY <= z.y + z.h
+        finalX >= z.x && finalX < z.x + z.w &&
+        finalY >= z.y && finalY < z.y + z.h
       )
+
+      // Mover sprite al tile
+      sprite.x = finalX
+      sprite.y = finalY
+      sprite.setData("tileCol",  clampCol)
+      sprite.setData("tileFila", clampFila)
+      this._reanudarTween(sprite)
 
       try {
         await API.moverPokemon(
           pkmn.id,
-          zonaDestino ? zonaDestino.id : null,
-          Math.round(finalX),
-          Math.round(finalY)
+          zonaDestino?.id || null,
+          clampCol * TILE,
+          clampFila * TILE
         )
+        pkmn.pos_x = clampCol  * TILE
+        pkmn.pos_y = clampFila * TILE
 
-        pkmn.pos_x = Math.round(finalX)
-        pkmn.pos_y = Math.round(finalY)
-        sprite.x   = finalX
-        sprite.y   = finalY
-
-        // Crear tween nuevo desde posición final
-        const nuevoTween = this.tweens.add({
-          targets:  sprite,
-          y:        finalY - 4,
-          duration: 700 + Math.random() * 600,
-          yoyo:     true,
-          repeat:   -1,
-          ease:     "Sine.easeInOut"
-        })
-        sprite.setData("tween", nuevoTween)
-
-        const zonaMsg = zonaDestino ? zonaDestino.tipo : "fuera de zona"
-        document.getElementById("status-bar").textContent =
-          `${pkmn.nombre} movido a ${zonaMsg}`
+        const msg = zonaDestino
+          ? `${pkmn.nombre} → zona ${zonaDestino.tipo}`
+          : `${pkmn.nombre} → fuera de zona`
+        document.getElementById("status-bar").textContent = msg
 
         const zonas = await API.getZonas(JUGADOR_ID)
         this.zonasList = zonas
         window.actualizarZonasUI(zonas)
 
       } catch(e) {
-        sprite.x = pkmn.pos_x || x
-        sprite.y = pkmn.pos_y || y
-        this.tweens.add({
-          targets:  sprite,
-          y:        (pkmn.pos_y || y) - 4,
-          duration: 700,
-          yoyo:     true,
-          repeat:   -1,
-          ease:     "Sine.easeInOut"
-        })
+        // Revertir
+        const prevCol  = sprite.getData("tileCol")
+        const prevFila = sprite.getData("tileFila")
+        sprite.x = prevCol  * TILE + TILE / 2
+        sprite.y = prevFila * TILE + TILE / 2
         document.getElementById("status-bar").textContent = `✗ ${e.message}`
       }
     })
@@ -269,43 +341,44 @@ class RanchScene extends Phaser.Scene {
     this.sprites[pkmn.id] = sprite
   }
 
+  _reanudarTween(sprite) {
+    const y = sprite.y
+    this.tweens.add({
+      targets:  sprite,
+      y:        y - 3,
+      duration: 600 + Math.random() * 400,
+      yoyo:     true,
+      repeat:   -1,
+      ease:     "Sine.easeInOut"
+    })
+  }
+
+  // ── Ticks ──────────────────────────────────────
   arrancarTicks() {
     if (this.tickInterval) clearInterval(this.tickInterval)
-
     this.tickInterval = setInterval(async () => {
       try {
         const data = await API.tick(JUGADOR_ID)
-        if (data.eventos && data.eventos.length > 0) {
-          this.procesarEventos(data.eventos)
-        }
-      } catch(e) {
-        console.error("Error en tick:", e)
-      }
-    }, 1000) // 1 tick por segundo
+        if (data.eventos?.length > 0) this.procesarEventos(data.eventos)
+      } catch(e) { console.error("Tick error:", e) }
+    }, 1000)
   }
 
   async procesarEventos(eventos) {
     for (const ev of eventos) {
       if (ev.accion === "huevo_generado") {
-        const d = ev.detalle
         document.getElementById("status-bar").textContent =
-          `🥚 ¡Nuevo huevo en ${ev.zona}! → ${d.especie.toUpperCase()}${d.es_shiny ? " ★" : ""}`
-
-        // Recargar Pokémon para mostrar el huevo
+          `🥚 ¡Huevo de ${ev.detalle.especie}!${ev.detalle.es_shiny ? " ★" : ""}`
         await this.recargarPokemon()
-
       } else if (ev.accion === "eclosion") {
-        const d = ev.detalle
         document.getElementById("status-bar").textContent =
-          `🐣 ¡${d.especie.toUpperCase()} ha eclosionado!${d.es_shiny ? " ★ SHINY" : ""}`
+          `🐣 ¡${ev.detalle.especie} ha eclosionado!`
         await this.recargarPokemon()
-
       } else if (ev.accion === "nivel_up") {
         const d = ev.detalle
-        const msg = d.evoluciono
-          ? `⬆ ¡${d.nombre} evolucionó a ${d.especie_nueva.toUpperCase()}!`
-          : `⬆ ${d.nombre} subió al nivel ${d.nivel_nuevo}`
-        document.getElementById("status-bar").textContent = msg
+        document.getElementById("status-bar").textContent = d.evoluciono
+          ? `⬆ ¡${d.nombre} → ${d.especie_nueva}!`
+          : `⬆ ${d.nombre} Nv.${d.nivel_nuevo}`
         if (d.evoluciono) await this.recargarPokemon()
       }
     }
@@ -313,27 +386,11 @@ class RanchScene extends Phaser.Scene {
 
   async recargarPokemon() {
     const data = await API.getPokemon(JUGADOR_ID)
-    const nuevos = data.filter(p => !this.sprites[p.id])
-
-    // Añadir sprites de Pokémon nuevos
-    nuevos.forEach(pkmn => {
-      const zona = this.zonasList.find(z => z.id === pkmn.zona_actual_id)
-      const x = pkmn.pos_x || (zona ? zona.pos_x + zona.ancho / 2 : 200)
-      const y = pkmn.pos_y || (zona ? zona.pos_y + zona.alto  / 2 : 200)
-      this.cargarSpritePokemon(pkmn, x, y)
+    data.filter(p => !this.sprites[p.id]).forEach(pkmn => {
+      const tileCol  = pkmn.pos_x ? Math.floor(pkmn.pos_x / this.TILE) : 2
+      const tileFila = pkmn.pos_y ? Math.floor(pkmn.pos_y / this.TILE) : 2
+      this.cargarSpritePokemon(pkmn, tileCol, tileFila)
     })
-
-    // Actualizar sprites que evolucionaron
-    data.forEach(pkmn => {
-      const anterior = this.pokemonList.find(p => p.id === pkmn.id)
-      if (anterior && anterior.numero_pokedex !== pkmn.numero_pokedex) {
-        const sprite = this.sprites[pkmn.id]
-        if (sprite) {
-          this.cargarSpritePokemon(pkmn, sprite.x, sprite.y)
-        }
-      }
-    })
-
     this.pokemonList = data
     window.actualizarListaPokemon(data)
   }
@@ -344,8 +401,8 @@ class RanchScene extends Phaser.Scene {
       this.selectedIds.splice(idx, 1)
     } else {
       if (this.selectedIds.length >= 2) {
-        const quitado = this.selectedIds.shift()
-        if (this.sprites[quitado]) this.sprites[quitado].clearTint()
+        const q = this.selectedIds.shift()
+        if (this.sprites[q]) this.sprites[q].clearTint()
       }
       this.selectedIds.push(id)
     }
@@ -355,11 +412,9 @@ class RanchScene extends Phaser.Scene {
   actualizarSeleccion() {
     Object.entries(this.sprites).forEach(([id, sprite]) => {
       const esHuevo = sprite.getData("esHuevo")
-      if (this.selectedIds.includes(parseInt(id))) {
-        sprite.setTint(0x90ff90)
-      } else {
-        esHuevo ? sprite.setTint(0x8888ff) : sprite.clearTint()
-      }
+      this.selectedIds.includes(parseInt(id))
+        ? sprite.setTint(0x90ff90)
+        : esHuevo ? sprite.setTint(0x8888ff) : sprite.clearTint()
     })
     window.actualizarSeleccionUI(this.selectedIds, this.pokemonList)
   }
