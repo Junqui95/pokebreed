@@ -120,24 +120,73 @@ function actualizarSeleccionUI(selectedIds, pokemonList) {
     document.getElementById("selected-meta").textContent =
       `Nv.${pkmn.nivel} · ${pkmn.tipo1}${pkmn.tipo2 ? "/"+pkmn.tipo2 : ""} · ${pkmn.naturaleza || "?"}`
 
-    const ivs = [
-      { label: "HP",  val: pkmn.iv_hp },
-      { label: "Atk", val: pkmn.iv_ataque },
-      { label: "Def", val: pkmn.iv_defensa },
-      { label: "SpA", val: pkmn.iv_sp_ataque },
-      { label: "SpD", val: pkmn.iv_sp_defensa },
-      { label: "Vel", val: pkmn.iv_velocidad },
-    ]
-    document.getElementById("iv-bars").innerHTML = ivs.map(iv => {
-      const pct   = Math.round((iv.val / 31) * 100)
-      const clase = iv.val >= 28 ? "high" : iv.val >= 15 ? "mid" : "low"
-      return `
-        <div class="iv-row">
-          <span class="iv-label">${iv.label}</span>
-          <div class="iv-track"><div class="iv-fill ${clase}" style="width:${pct}%"></div></div>
-          <span class="iv-val">${iv.val}</span>
-        </div>`
-    }).join("")
+    const esHuevo = pkmn.nivel === 1 && pkmn.padre_id !== null
+
+    if (esHuevo) {
+      document.getElementById("iv-bars").innerHTML = `
+        <div style="margin-top:6px">
+          <div style="font-size:7px;color:#666;margin-bottom:4px">INCUBACIÓN</div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <div class="iv-track" style="flex:1;height:6px">
+              <div class="iv-fill high" id="barra-progreso" style="width:0%"></div>
+            </div>
+            <span id="texto-progreso" style="font-size:7px;color:#aaa">0%</span>
+          </div>
+        </div>
+      `
+      const zonaIncubacion = window.ranchScene?.zonasList?.find(z => z.tipo_zona === "incubacion")
+      if (zonaIncubacion && pkmn.zona_actual_id === zonaIncubacion.id) {
+        API.getProgreso(zonaIncubacion.id).then(progresos => {
+          const p = progresos.find(x => x.pokemon_id === pkmn.id)
+          if (p) {
+            const barEl  = document.getElementById("barra-progreso")
+            const txtEl  = document.getElementById("texto-progreso")
+            if (barEl) barEl.style.width  = `${p.progreso}%`
+            if (txtEl) txtEl.textContent  = `${p.progreso}%`
+          }
+        })
+      } else {
+        document.getElementById("texto-progreso").textContent = "Mueve a zona de incubación"
+      }
+
+    } else {
+      const nivelSig    = pkmn.nivel + 1
+      const xpNecesaria = Math.pow(nivelSig, 3)
+      const xpActual    = pkmn.experiencia || 0
+      const xpPct       = Math.min(100, Math.round((xpActual / xpNecesaria) * 100))
+
+      const ivs = [
+        { label: "HP",  val: pkmn.iv_hp },
+        { label: "Atk", val: pkmn.iv_ataque },
+        { label: "Def", val: pkmn.iv_defensa },
+        { label: "SpA", val: pkmn.iv_sp_ataque },
+        { label: "SpD", val: pkmn.iv_sp_defensa },
+        { label: "Vel", val: pkmn.iv_velocidad },
+      ]
+
+      document.getElementById("iv-bars").innerHTML = `
+        <div style="margin-top:4px;margin-bottom:6px">
+          <div style="display:flex;align-items:center;gap:4px">
+            <span style="font-size:7px;color:#666;width:24px">XP</span>
+            <div class="iv-track" style="flex:1;height:4px">
+              <div class="iv-fill" style="width:${xpPct}%;background:#e8c840"></div>
+            </div>
+            <span style="font-size:7px;color:#e8c840">${xpActual}/${xpNecesaria}</span>
+          </div>
+        </div>
+        ${ivs.map(iv => {
+          const pct   = Math.round((iv.val / 31) * 100)
+          const clase = iv.val >= 28 ? "high" : iv.val >= 15 ? "mid" : "low"
+          return `
+            <div class="iv-row">
+              <span class="iv-label">${iv.label}</span>
+              <div class="iv-track"><div class="iv-fill ${clase}" style="width:${pct}%"></div></div>
+              <span class="iv-val">${iv.val}</span>
+            </div>`
+        }).join("")}
+      `
+    }
+
   } else {
     document.getElementById("selected-sprite").src = ""
     document.getElementById("selected-name").textContent = "—"
@@ -145,12 +194,10 @@ function actualizarSeleccionUI(selectedIds, pokemonList) {
     document.getElementById("iv-bars").innerHTML = ""
   }
 
-  // Botones
   const puedeCriar = selectedIds.length === 2
   document.getElementById("btn-criar").disabled = !puedeCriar
   document.getElementById("btn-mover").disabled = selectedIds.length !== 1
 
-  // Texto del botón según selección
   if (selectedIds.length === 2) {
     const p1 = pokemonList.find(p => p.id === selectedIds[0])
     const p2 = pokemonList.find(p => p.id === selectedIds[1])
@@ -202,71 +249,59 @@ async function eliminarPokemon(id) {
   const lista = window.ranchScene?.pokemonList
   const pkmn  = lista?.find(p => p.id === id)
   if (!pkmn) return
-
   const nombre = pkmn.apodo || pkmn.nombre
   if (!confirm(`¿Eliminar a ${nombre}?`)) return
-
   try {
     await API.eliminarPokemon(id)
-
-    // Quitar del mapa
     const sprite = window.ranchScene?.sprites[id]
     if (sprite) {
       sprite.destroy()
       delete window.ranchScene.sprites[id]
     }
-
-    // Quitar de selectedIds si estaba seleccionado
     if (window.ranchScene) {
       window.ranchScene.selectedIds =
         window.ranchScene.selectedIds.filter(sid => sid !== id)
       window.ranchScene.pokemonList =
         window.ranchScene.pokemonList.filter(p => p.id !== id)
     }
-
-    // Actualizar sidebar
     actualizarListaPokemon(window.ranchScene?.pokemonList || [])
     actualizarSeleccionUI(
       window.ranchScene?.selectedIds || [],
       window.ranchScene?.pokemonList || []
     )
-
     document.getElementById("status-bar").textContent =
       `${nombre} eliminado del rancho.`
-
   } catch(e) {
     document.getElementById("status-bar").textContent = `✗ ${e.message}`
   }
-
-  function actualizarZonasUI(zonas) {
-    const lista = document.getElementById("zonas-list")
-    if (!lista) return
-    lista.innerHTML = ""
-
-    zonas.forEach(zona => {
-      const iconos = { cria: "🥚", entrenamiento: "⚡", incubacion: "🔮" }
-      const icono  = iconos[zona.tipo_zona] || "📦"
-      const count  = zona.pokemon_ids.length
-      const huevo  = zona.huevo_id ? "· 🥚 huevo activo" : ""
-
-      const div = document.createElement("div")
-      div.style.cssText = `
-        padding: 8px;
-        border: 1px solid #333;
-        border-radius: 4px;
-        margin-bottom: 6px;
-        font-size: 7px;
-        font-family: 'Press Start 2P';
-      `
-      div.innerHTML = `
-        <div style="color:#aaa;margin-bottom:4px">${icono} ${zona.nombre}</div>
-        <div style="color:#666">${count} Pokémon ${huevo}</div>
-      `
-      lista.appendChild(div)
-    })
-  }
-
-  window.actualizarZonasUI    = actualizarZonasUI
-  window.actualizarListaPokemon = actualizarListaPokemon
-  window.actualizarSeleccionUI  = actualizarSeleccionUI
 }
+
+function actualizarZonasUI(zonas) {
+  const lista = document.getElementById("zonas-list")
+  if (!lista) return
+  lista.innerHTML = ""
+  zonas.forEach(zona => {
+    const iconos = { cria: "🥚", entrenamiento: "⚡", incubacion: "🔮" }
+    const icono  = iconos[zona.tipo_zona] || "📦"
+    const count  = zona.pokemon_ids.length
+    const huevo  = zona.huevo_id ? "· 🥚 huevo activo" : ""
+    const div = document.createElement("div")
+    div.style.cssText = `
+      padding: 8px;
+      border: 1px solid #333;
+      border-radius: 4px;
+      margin-bottom: 6px;
+      font-size: 7px;
+      font-family: 'Press Start 2P';
+    `
+    div.innerHTML = `
+      <div style="color:#aaa;margin-bottom:4px">${icono} ${zona.nombre}</div>
+      <div style="color:#666">${count} Pokémon ${huevo}</div>
+    `
+    lista.appendChild(div)
+  })
+}
+
+window.actualizarZonasUI      = actualizarZonasUI
+window.actualizarListaPokemon = actualizarListaPokemon
+window.actualizarSeleccionUI  = actualizarSeleccionUI

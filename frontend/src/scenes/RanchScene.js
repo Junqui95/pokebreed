@@ -29,9 +29,7 @@ class RanchScene extends Phaser.Scene {
     const leyenda = mapa.leyenda
     const TILE    = this.TILE
     const SRC     = this.TILE_SRC
-    const COLS    = this.TILESET_COLS
 
-    // Coordenadas de cada tipo de tile en el tileset
     const tileCoords = {
       "hierba":   mapa.tiles.hierba,
       "tierra":   mapa.tiles.tierra,
@@ -46,44 +44,45 @@ class RanchScene extends Phaser.Scene {
       "valla_BR": mapa.tiles["valla_BR"],
     }
 
-    // Crear RenderTexture del tamaño del mapa
-    const rt = this.add.renderTexture(0, 0,
-      mapa.ancho * TILE, mapa.alto * TILE)
-
-    // Crear imagen temporal para recortar tiles
+    // Crear un frame por cada tile único necesario
     const tileset = this.textures.get("tileset")
-    const tilesetImg = tileset.getSourceImage()
+    const usados  = new Set()
 
-    mapa.mapa.forEach((fila, r) => {
-      fila.forEach((tileId, c) => {
-        const tipoNombre = leyenda[String(tileId)] || "hierba"
-        const coords     = tileCoords[tipoNombre] || tileCoords["hierba"]
-        const [tr, tc]   = coords
-
-        // Crear frame temporal del tile
-        const key = `tile_${tr}_${tc}`
-        if (!this.textures.exists(key)) {
-          this.textures.add(
-            key,
-            0,
-            tc * SRC, tr * SRC,
-            SRC, SRC
-          )
+    mapa.mapa.forEach(fila => {
+      fila.forEach(tileId => {
+        const tipo   = leyenda[String(tileId)] || "hierba"
+        const coords = tileCoords[tipo] || tileCoords["hierba"]
+        const frameKey = `${coords[0]}_${coords[1]}`
+        if (!usados.has(frameKey)) {
+          usados.add(frameKey)
+          // Añadir frame al tileset si no existe
+          if (!tileset.has(frameKey)) {
+            tileset.add(
+              frameKey,
+              0,
+              coords[1] * SRC,  // x en el tileset (columna * SRC)
+              coords[0] * SRC,  // y en el tileset (fila * SRC)
+              SRC,
+              SRC
+            )
+          }
         }
-
-        // Dibujar tile escalado
-        const img = this.add.image(0, 0, "tileset")
-          .setOrigin(0)
-          .setCrop(tc * SRC, tr * SRC, SRC, SRC)
-          .setScale(TILE / SRC)
-          .setVisible(false)
-
-        rt.draw(img, c * TILE, r * TILE)
-        img.destroy()
       })
     })
 
-    // Calcular zonaRects desde el JSON
+    // Renderizar cada tile
+    mapa.mapa.forEach((fila, r) => {
+      fila.forEach((tileId, c) => {
+        const tipo     = leyenda[String(tileId)] || "hierba"
+        const coords   = tileCoords[tipo] || tileCoords["hierba"]
+        const frameKey = `${coords[0]}_${coords[1]}`
+
+        this.add.image(c * TILE + TILE / 2, r * TILE + TILE / 2, "tileset", frameKey)
+          .setDisplaySize(TILE, TILE)
+      })
+    })
+
+    // Calcular zonaRects
     this.zonaRects = []
     Object.entries(mapa.zonas).forEach(([nombre, zona]) => {
       this.zonaRects.push({
@@ -97,7 +96,7 @@ class RanchScene extends Phaser.Scene {
       })
     })
 
-    // Tiles de valla = bloqueados para Pokémon
+    // Tiles bloqueados
     this.tilesBlocking = new Set()
     mapa.mapa.forEach((fila, r) => {
       fila.forEach((tileId, c) => {
@@ -135,8 +134,8 @@ class RanchScene extends Phaser.Scene {
       })
 
       this.colocarSprites()
-      window.actualizarListaPokemon(this.pokemonList)
-      window.actualizarZonasUI(this.zonasList)
+      window.actualizarListaPokemon && window.actualizarListaPokemon(this.pokemonList)
+      window.actualizarZonasUI      && window.actualizarZonasUI(this.zonasList)
       this.arrancarTicks()
 
     } catch(e) {
@@ -182,6 +181,7 @@ class RanchScene extends Phaser.Scene {
 
   // ── Sprites PMD ────────────────────────────────
   cargarSpritePokemon(pkmn, tileCol, tileFila) {
+    console.log(`Cargando sprite para ${pkmn.nombre} en tile ${tileCol},${tileFila}`)
     const esHuevo = pkmn.nivel === 1 && pkmn.padre_id !== null
     const num     = pkmn.numero_pokedex
     const key     = `pmd_${num}`
@@ -213,25 +213,32 @@ class RanchScene extends Phaser.Scene {
     const x    = tileCol  * TILE + TILE / 2
     const y    = tileFila * TILE + TILE / 2
 
-    // El spritesheet PMD: 8 cols x 8 rows, frame ~30x40px
-    // Usamos fila 0 (sur) frame 0 como sprite estático por ahora
-    const FRAME_W = 30
-    const FRAME_H = 40
-    const SHEET_W = 240  // ancho total spritesheet
+    // Dimensiones exactas del frame PMD
+    const CELL_W   = 30   // celda total incluyendo padding
+    const CELL_H   = 40
 
-    const sprite = this.add.image(x, y, key)
+    if (!textura.has("sur_0")) {
+      textura.add("sur_0", 0, 0, 0, CELL_W, CELL_H)
+    }
+
+    // Los huevos usan sprite de Chikorita con tint azul por ahora
+    // En el futuro tendrán sprite propio
+    const sprite = this.add.image(x, y, key, "sur_0")
       .setOrigin(0.5)
-      .setCrop(0, 0, FRAME_W, FRAME_H)
-      .setScale(TILE / FRAME_H)
-      .setInteractive({ draggable: true, cursor: "pointer" })
+      .setDisplaySize(TILE, TILE)
+      .setInteractive(
+        new Phaser.Geom.Rectangle(0, 0, CELL_W, CELL_H),
+        Phaser.Geom.Rectangle.Contains
+      )
+      this.input.setDraggable(sprite)
       .setData("pokemonId", pkmn.id)
-      .setData("tileCol", tileCol)
-      .setData("tileFila", tileFila)
-      .setData("esHuevo", esHuevo)
+      .setData("tileCol",   tileCol)
+      .setData("tileFila",  tileFila)
+      .setData("esHuevo",   esHuevo)
 
-    if (esHuevo) sprite.setTint(0x8888ff)
+    if (esHuevo) sprite.setTint(0x6699ff)
 
-    // Animación idle — bob suave
+    // Animación idle
     this.tweens.add({
       targets:  sprite,
       y:        y - 3,
@@ -242,58 +249,51 @@ class RanchScene extends Phaser.Scene {
       delay:    Math.random() * 500
     })
 
-    // Hover
     sprite.on("pointerover", () => {
       sprite.setTint(esHuevo ? 0xaaaaff : 0xdddddd)
       const gen = pkmn.genero === "F" ? "♀" : "♂"
-      document.getElementById("status-bar").textContent =
-        `${pkmn.nombre.toUpperCase()} · Nv.${pkmn.nivel} ${gen}`
+      document.getElementById("status-bar").textContent = esHuevo
+        ? `🥚 Huevo de ${pkmn.nombre.toUpperCase()} · ${gen}`
+        : `${pkmn.nombre.toUpperCase()} · Nv.${pkmn.nivel} ${gen} · ${pkmn.naturaleza || ""}`
     })
     sprite.on("pointerout", () => {
       if (!this.selectedIds.includes(pkmn.id))
-        esHuevo ? sprite.setTint(0x8888ff) : sprite.clearTint()
+        esHuevo ? sprite.setTint(0x6699ff) : sprite.clearTint()
       document.getElementById("status-bar").textContent = ""
     })
     sprite.on("pointerdown", () => {
       if (!this.dragTarget) this.seleccionarPokemon(pkmn.id)
     })
 
-    // Drag con snap a tile
+    // Drag
     sprite.on("dragstart", () => {
       this.dragTarget = pkmn.id
       this.tweens.killTweensOf(sprite)
       sprite.setDepth(10)
       sprite.setAlpha(0.85)
     })
-
     sprite.on("drag", (pointer) => {
       sprite.x = pointer.x
       sprite.y = pointer.y
     })
-
     sprite.on("dragend", async (pointer) => {
       this.dragTarget = null
       sprite.setDepth(0)
       sprite.setAlpha(1)
 
-      // Snap al tile más cercano
-      const snapCol  = Math.round((pointer.x - TILE / 2) / TILE)
-      const snapFila = Math.round((pointer.y - TILE / 2) / TILE)
+      const snapCol   = Math.round((pointer.x - TILE / 2) / TILE)
+      const snapFila  = Math.round((pointer.y - TILE / 2) / TILE)
       const clampCol  = Math.max(0, Math.min(this.mapaData.ancho - 1, snapCol))
       const clampFila = Math.max(0, Math.min(this.mapaData.alto  - 1, snapFila))
 
-      // Verificar que no es tile de valla
       if (this.tilesBlocking.has(`${clampCol},${clampFila}`)) {
-        // Revertir a posición anterior
-        sprite.x = sprite.getData("tileCol") * TILE + TILE / 2
+        sprite.x = sprite.getData("tileCol")  * TILE + TILE / 2
         sprite.y = sprite.getData("tileFila") * TILE + TILE / 2
-        document.getElementById("status-bar").textContent =
-          "No puedes colocar un Pokémon en una valla"
+        document.getElementById("status-bar").textContent = "No puedes colocar un Pokémon en una valla"
         this._reanudarTween(sprite)
         return
       }
 
-      // Detectar zona
       const finalX = clampCol  * TILE + TILE / 2
       const finalY = clampFila * TILE + TILE / 2
       const zonaDestino = this.zonaRects.find(z =>
@@ -301,7 +301,6 @@ class RanchScene extends Phaser.Scene {
         finalY >= z.y && finalY < z.y + z.h
       )
 
-      // Mover sprite al tile
       sprite.x = finalX
       sprite.y = finalY
       sprite.setData("tileCol",  clampCol)
@@ -318,21 +317,18 @@ class RanchScene extends Phaser.Scene {
         pkmn.pos_x = clampCol  * TILE
         pkmn.pos_y = clampFila * TILE
 
-        const msg = zonaDestino
-          ? `${pkmn.nombre} → zona ${zonaDestino.tipo}`
-          : `${pkmn.nombre} → fuera de zona`
-        document.getElementById("status-bar").textContent = msg
+        document.getElementById("status-bar").textContent =
+          zonaDestino
+            ? `${pkmn.nombre} → zona ${zonaDestino.tipo}`
+            : `${pkmn.nombre} → fuera de zona`
 
         const zonas = await API.getZonas(JUGADOR_ID)
         this.zonasList = zonas
-        window.actualizarZonasUI(zonas)
+        window.actualizarZonasUI && window.actualizarZonasUI(zonas)
 
       } catch(e) {
-        // Revertir
-        const prevCol  = sprite.getData("tileCol")
-        const prevFila = sprite.getData("tileFila")
-        sprite.x = prevCol  * TILE + TILE / 2
-        sprite.y = prevFila * TILE + TILE / 2
+        sprite.x = sprite.getData("tileCol")  * TILE + TILE / 2
+        sprite.y = sprite.getData("tileFila") * TILE + TILE / 2
         document.getElementById("status-bar").textContent = `✗ ${e.message}`
       }
     })
@@ -392,7 +388,7 @@ class RanchScene extends Phaser.Scene {
       this.cargarSpritePokemon(pkmn, tileCol, tileFila)
     })
     this.pokemonList = data
-    window.actualizarListaPokemon(data)
+    window.actualizarListaPokemon && window.actualizarListaPokemon(data)
   }
 
   seleccionarPokemon(id) {
@@ -416,7 +412,7 @@ class RanchScene extends Phaser.Scene {
         ? sprite.setTint(0x90ff90)
         : esHuevo ? sprite.setTint(0x8888ff) : sprite.clearTint()
     })
-    window.actualizarSeleccionUI(this.selectedIds, this.pokemonList)
+    window.actualizarSeleccionUI && window.actualizarSeleccionUI(this.selectedIds, this.pokemonList)
   }
 
   getSelectedIds() { return this.selectedIds }
